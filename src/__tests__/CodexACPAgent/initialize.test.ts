@@ -38,6 +38,15 @@ describe('CodexACPAgent - initialize', () => {
                 version: packageJson.version,
             },
             agentCapabilities: {
+                _meta: {
+                    "io.github.euri10.louiselm": {
+                        accountLimits: {
+                            version: 1,
+                            readMethod: "_io.github.euri10.louiselm/account_limits/read",
+                            updatedMethod: "_io.github.euri10.louiselm/account_limits/updated",
+                        },
+                    },
+                },
                 auth: {
                     logout: {},
                 },

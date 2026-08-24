@@ -16,6 +16,7 @@ Use [OpenAI Codex](https://github.com/openai/codex) from [Agent Client Protocol]
 - [Background terminal tasks](docs/async-tasks.md) in AIR, with task status and targeted stop support after capability negotiation.
 - Session-scoped long-running goals through the provider-neutral [goal extension](docs/goal-extension.md).
 - A per-turn [agent file-change report](docs/agent-file-change-report.md) after capability negotiation.
+- Structured account capacity through the provider-neutral [account limits extension](docs/account-limits-extension.md).
 - Client-provided MCP servers over command-based stdio config and HTTP transport.
 - Slash commands: `/status`, `/mcp`, `/skills`, `/goal`, `/review`, `/review-branch`, `/review-commit`, `/compact`, and `/logout`, as well as configured skills.
 

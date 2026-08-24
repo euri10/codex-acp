@@ -149,6 +149,12 @@ import {
     createUnavailableAgentFileChangeReport,
     parseAgentFileChangeReportRequest,
 } from "./AgentFileChangeReport";
+import {
+    ACCOUNT_LIMITS_META_KEY,
+    ACCOUNT_LIMITS_READ_METHOD,
+    ACCOUNT_LIMITS_UPDATED_METHOD,
+    type AccountLimitsSnapshot,
+} from "./AccountLimitsExtension";
 
 
 export interface SessionState {
@@ -319,6 +325,7 @@ export class CodexAcpServer {
         this.currentAuthStatus = null;
         this.availableCommands = this.createAvailableCommands(codexAcpClient);
         this.observeCodexProcess();
+        this.observeAccountLimits(codexAcpClient);
     }
 
     private createAvailableCommands(client: CodexAcpClient): CodexCommands {
@@ -328,6 +335,16 @@ export class CodexAcpServer {
             (operation) => this.runWithProcessCheck(operation),
             () => this.refreshAuthState(null)
         );
+    }
+
+    private observeAccountLimits(client: CodexAcpClient): void {
+        client.onAccountLimitsUpdated((snapshot: AccountLimitsSnapshot) => {
+            if (this.codexAcpClient !== client) {
+                return;
+            }
+            void Promise.resolve(this.connection.notify(ACCOUNT_LIMITS_UPDATED_METHOD, snapshot))
+                .catch(() => logger.log("Failed to publish ACP account-limits update"));
+        });
     }
 
     async initialize(
@@ -358,6 +375,15 @@ export class CodexAcpServer {
                 version: packageJson.version,
             },
             agentCapabilities: {
+                _meta: {
+                    [ACCOUNT_LIMITS_META_KEY]: {
+                        accountLimits: {
+                            version: 1,
+                            readMethod: ACCOUNT_LIMITS_READ_METHOD,
+                            updatedMethod: ACCOUNT_LIMITS_UPDATED_METHOD,
+                        },
+                    },
+                },
                 auth: {
                     logout: {},
                 },
@@ -372,11 +398,6 @@ export class CodexAcpServer {
                     acp: false,
                     http: true,
                     sse: false
-                },
-                _meta: {
-                    // Presence means "this agent pushes `_auth/status_update`". It
-                    // never carries a payload, and the client never asks for one.
-                    [AUTH_STATUS_META_KEY]: authStatusCapability(),
                 },
             },
             authMethods: getCodexAuthMethods(_params.clientCapabilities),
@@ -416,6 +437,8 @@ export class CodexAcpServer {
                 await this.logout({});
                 return {};
             }
+            case ACCOUNT_LIMITS_READ_METHOD:
+                return await this.runWithProcessCheck(() => this.codexAcpClient.getAccountLimits());
             case LEGACY_SET_SESSION_MODEL_METHOD:
                 return await this.unstable_setSessionModel(this.parseLegacySetSessionModelParams(methodRequest.params));
             case SESSION_STEERING_METHOD:
@@ -1047,6 +1070,7 @@ export class CodexAcpServer {
             await replacement.initialize(this.initializeRequest);
             this.codexAcpClient = replacement;
             this.availableCommands = this.createAvailableCommands(replacement);
+            this.observeAccountLimits(replacement);
 
             const resumeErrors: unknown[] = [];
             for (const session of this.sessions.values()) {
