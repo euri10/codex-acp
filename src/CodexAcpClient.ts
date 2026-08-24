@@ -60,6 +60,11 @@ import {CodexSubagentSubscriptions} from "./subagents/CodexSubagentSubscriptions
 import {forkSession as runForkSession} from "./SessionFork";
 import type {SessionMetadata, SessionMetadataWithThread} from "./SessionMetadata";
 export type {SessionMetadata, SessionMetadataWithThread} from "./SessionMetadata";
+import {
+    type AccountLimitsSnapshot,
+    mergeAccountLimits,
+    normalizeAccountLimits,
+} from "./AccountLimitsExtension";
 
 /**
  * Well-known provider id for the client-configurable custom LLM gateway.
@@ -115,6 +120,8 @@ export class CodexAcpClient {
     private readonly subagents: CodexSubagentSubscriptions;
     private skillExtraRoots: string[] = [];
     private configPath: string | null = null;
+    private accountLimits: GetAccountRateLimitsResponse | null = null;
+    private readonly accountLimitsHandlers = new Set<(snapshot: AccountLimitsSnapshot) => void>();
 
 
     constructor(codexClient: CodexAppServerClient, codexConfig?: JsonObject, modelProvider?: string) {
@@ -124,6 +131,26 @@ export class CodexAcpClient {
         this.gatewayConfig = null;
         this.gatewayConfigSource = null;
         this.subagents = new CodexSubagentSubscriptions(codexClient);
+        this.codexClient.onClientTransportEvent((event) => {
+            if (event.eventType !== "notification" || event.method !== "account/rateLimits/updated") {
+                return;
+            }
+            if (this.accountLimits === null) {
+                return;
+            }
+            const merged = mergeAccountLimits(this.accountLimits, event.params.rateLimits);
+            let snapshot: AccountLimitsSnapshot;
+            try {
+                snapshot = normalizeAccountLimits(merged);
+            } catch {
+                logger.log("Ignored malformed Codex account-limits update");
+                return;
+            }
+            this.accountLimits = merged;
+            for (const handler of this.accountLimitsHandlers) {
+                handler(snapshot);
+            }
+        });
     }
 
     get appServerClient(): CodexAppServerClient {
@@ -151,6 +178,17 @@ export class CodexAcpClient {
 
     getHomePath(): string | null {
         return this.configPath;
+    }
+
+    async getAccountLimits(): Promise<AccountLimitsSnapshot> {
+        const response = await this.codexClient.accountRateLimitsRead();
+        const snapshot = normalizeAccountLimits(response);
+        this.accountLimits = response;
+        return snapshot;
+    }
+
+    onAccountLimitsUpdated(handler: (snapshot: AccountLimitsSnapshot) => void): void {
+        this.accountLimitsHandlers.add(handler);
     }
 
     async authenticate(
