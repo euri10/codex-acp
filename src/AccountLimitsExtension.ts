@@ -84,6 +84,7 @@ export function mergeAccountLimits(
     rateLimitsByLimitId[updateId] = merged;
 
     return {
+        ...previous,
         rateLimits: defaultId === updateId
             ? mergeRateLimit(previous.rateLimits, update)
             : previous.rateLimits,
