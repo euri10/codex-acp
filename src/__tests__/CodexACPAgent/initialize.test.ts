@@ -39,6 +39,7 @@ describe('CodexACPAgent - initialize', () => {
             },
             agentCapabilities: {
                 _meta: {
+                    authStatus: {},
                     "io.github.euri10.louiselm": {
                         accountLimits: {
                             version: 1,
@@ -69,9 +70,6 @@ describe('CodexACPAgent - initialize', () => {
                     acp: false,
                     http: true,
                     sse: false,
-                },
-                _meta: {
-                    authStatus: {},
                 },
             },
             authMethods: getCodexAuthMethods(),
