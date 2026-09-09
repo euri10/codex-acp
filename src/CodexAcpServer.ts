@@ -174,6 +174,7 @@ export interface SessionState {
     currentTurnId: string | null;
     lastTokenUsage: TokenCount | null;
     totalTokenUsage: TokenCount | null;
+    turnTokenUsage: TokenCount | null;
     modelContextWindow: number | null;
     rateLimits: RateLimitsMap | null;
     account: Account | null;
@@ -685,6 +686,7 @@ export class CodexAcpServer {
             currentTurnId: null,
             lastTokenUsage: null,
             totalTokenUsage: null,
+            turnTokenUsage: null,
             modelContextWindow: null,
             rateLimits: null,
             account: authState.account,
@@ -1944,6 +1946,7 @@ export class CodexAcpServer {
             currentTurnId: null,
             lastTokenUsage: null,
             totalTokenUsage: null,
+            turnTokenUsage: null,
             modelContextWindow: null,
             rateLimits: null,
             account: authState.account,
@@ -2785,6 +2788,7 @@ export class CodexAcpServer {
         let promptWasCancelled = false;
         let recoverableSessionFailure = sessionState.sessionFailure;
         sessionState.currentTurnId = null;
+        sessionState.turnTokenUsage = null;
         const activePrompt = this.trackActivePrompt(params.sessionId);
         let pendingTurnStart: PendingTurnStart | null = null;
         const ensurePendingTurnStart = (): PendingTurnStart => {
@@ -2947,7 +2951,7 @@ export class CodexAcpServer {
                 await clearRecoveredSessionFailure(eventHandler);
                 return {
                     stopReason: "end_turn",
-                    usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+                    usage: this.buildPromptUsage(sessionState.turnTokenUsage),
                     _meta: this.buildQuotaMeta(sessionState),
                 };
             }
@@ -3181,7 +3185,7 @@ export class CodexAcpServer {
 
             return {
                 stopReason: "end_turn",
-                usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+                usage: this.buildPromptUsage(sessionState.turnTokenUsage),
                 _meta: this.buildQuotaMeta(sessionState),
             };
         } catch (err) {
@@ -3293,7 +3297,7 @@ export class CodexAcpServer {
     private cancelledPromptResponse(sessionState: SessionState): acp.PromptResponse {
         return {
             stopReason: "cancelled",
-            usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+            usage: this.buildPromptUsage(sessionState.turnTokenUsage),
             _meta: this.buildQuotaMeta(sessionState),
         };
     }
@@ -3310,7 +3314,7 @@ export class CodexAcpServer {
         }
         return {
             stopReason: "end_turn",
-            usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+            usage: this.buildPromptUsage(sessionState.turnTokenUsage),
             _meta: {
                 ...this.buildQuotaMeta(sessionState),
                 ...failureMeta,
@@ -3319,29 +3323,29 @@ export class CodexAcpServer {
     }
 
     private buildQuotaMeta(sessionState: SessionState): { quota: QuotaMeta } {
-        const lastTokenUsage = sessionState.lastTokenUsage;
+        const turnTokenUsage = sessionState.turnTokenUsage;
 
         // Remove the "[reasoning-level]" suffix from currentModelId if present
         const modelName = sessionState.currentModelId.replace(/\[.*?]$/, '');
 
         // FIXME: currently all tokens are reported for the current model
-        const modelUsage = (lastTokenUsage != null)
-            ? [{ model: modelName, token_count: lastTokenUsage }]
+        const modelUsage = (turnTokenUsage != null)
+            ? [{ model: modelName, token_count: turnTokenUsage }]
             : [];
 
         return {
             quota: {
-                token_count: sessionState.lastTokenUsage,
+                token_count: turnTokenUsage,
                 model_usage: modelUsage
             }
         };
     }
 
-    private buildPromptUsage(lastTokenUsage: TokenCount | null): acp.Usage | null {
-        if (lastTokenUsage == null) {
+    private buildPromptUsage(turnTokenUsage: TokenCount | null): acp.Usage | null {
+        if (turnTokenUsage == null) {
             return null;
         }
-        return toPromptUsage(lastTokenUsage);
+        return toPromptUsage(turnTokenUsage);
     }
 
     private async runWithProcessCheck<T>(operation: () => Promise<T>): Promise<T> {
