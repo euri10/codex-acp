@@ -1280,8 +1280,30 @@ export class CodexEventHandler {
     }
 
     private handleTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): void {
-        this.sessionState.lastTokenUsage = toTokenCount(params.tokenUsage.last);
-        this.sessionState.totalTokenUsage = toTokenCount(params.tokenUsage.total);
+        const last = toTokenCount(params.tokenUsage.last);
+        const total = toTokenCount(params.tokenUsage.total);
+        const previous = this.sessionState.totalTokenUsage;
+        if (params.turnId === this.sessionState.currentTurnId) {
+            // Cumulative deltas count equal-sized requests once each and repeated notifications once.
+            // A resumed session may have no observed baseline: its first update contributes only `last`.
+            const baseline = previous ?? {
+                totalTokens: total.totalTokens - last.totalTokens,
+                inputTokens: total.inputTokens - last.inputTokens,
+                cachedInputTokens: total.cachedInputTokens - last.cachedInputTokens,
+                outputTokens: total.outputTokens - last.outputTokens,
+                reasoningOutputTokens: total.reasoningOutputTokens - last.reasoningOutputTokens,
+            };
+            const turn = this.sessionState.turnTokenUsage;
+            this.sessionState.turnTokenUsage = {
+                totalTokens: (turn?.totalTokens ?? 0) + total.totalTokens - baseline.totalTokens,
+                inputTokens: (turn?.inputTokens ?? 0) + total.inputTokens - baseline.inputTokens,
+                cachedInputTokens: (turn?.cachedInputTokens ?? 0) + total.cachedInputTokens - baseline.cachedInputTokens,
+                outputTokens: (turn?.outputTokens ?? 0) + total.outputTokens - baseline.outputTokens,
+                reasoningOutputTokens: (turn?.reasoningOutputTokens ?? 0) + total.reasoningOutputTokens - baseline.reasoningOutputTokens,
+            };
+        }
+        this.sessionState.lastTokenUsage = last;
+        this.sessionState.totalTokenUsage = total;
         this.sessionState.modelContextWindow = params.tokenUsage.modelContextWindow;
     }
 

@@ -9,13 +9,14 @@ function createTokenUsageNotification(
         total: TokenUsageBreakdown;
         last: TokenUsageBreakdown;
         modelContextWindow: number | null;
-    }
+    },
+    turnId = 'turn-id',
 ): ServerNotification {
     return {
         method: 'thread/tokenUsage/updated',
         params: {
             threadId: sessionId,
-            turnId: 'turn-id',
+            turnId,
             tokenUsage,
         },
     };
@@ -54,7 +55,7 @@ describe('Token Usage Events', () => {
             return codexAcpAgent;
         }
 
-        it('should include token_count in PromptResponse on end_turn', async () => {
+        it('counts the first observed request without importing an unobserved session baseline', async () => {
             const tokenUsageNotification = createTokenUsageNotification(sessionId, {
                 total: {
                     totalTokens: 5000,
@@ -133,7 +134,7 @@ describe('Token Usage Events', () => {
             );
         });
 
-        it('should use last token usage from multiple updates', async () => {
+        it('should include every request in a turn, including equal-sized requests', async () => {
             const notifications: ServerNotification[] = [
                 createTokenUsageNotification(sessionId, {
                     total: { totalTokens: 1000, inputTokens: 800, cachedInputTokens: 0, cacheWriteInputTokens: 0, outputTokens: 200, reasoningOutputTokens: 0 },
@@ -162,6 +163,90 @@ describe('Token Usage Events', () => {
             await expect(`${JSON.stringify(response, null, 2)}\n`).toMatchFileSnapshot(
                 'data/token-usage-multiple-updates.json'
             );
+        });
+
+        it('keeps captured multi-request consumption separate from context and subsequent prompts', async () => {
+            // Codex 0.153.4, codex/01a0847e-d83a-7052-9eee-945fb6d2e2a5:
+            // ~/.codex/sessions/2026/09/09/rollout-2026-09-09T06-48-20-01a0847e-d83a-7052-9eee-945fb6d2e2a5.jsonl
+            // token_count frames at lines 20,28,36,42,53,62,69,77,83 precede task_complete (84).
+            // These last-request counters and their order are captured; projection to the typed
+            // app-server notification is synthetic. The native turn total is 564891 (line 82).
+            const capturedRequests = [
+                [31696, 7936, 178, 0],
+                [41932, 31488, 196, 73],
+                [48153, 41728, 182, 0],
+                [60311, 48000, 301, 77],
+                [61601, 60160, 238, 53],
+                [70664, 61440, 262, 43],
+                [80134, 70528, 267, 64],
+                [83704, 80000, 223, 144],
+                [84485, 83584, 364, 137],
+            ] as const;
+            let total: TokenUsageBreakdown = {
+                totalTokens: 0, inputTokens: 0, cachedInputTokens: 0, cacheWriteInputTokens: 0,
+                outputTokens: 0, reasoningOutputTokens: 0,
+            };
+            const notifications = capturedRequests.map(([inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens]) => {
+                const last = {
+                    totalTokens: inputTokens + outputTokens, inputTokens, cachedInputTokens,
+                    cacheWriteInputTokens: 0, outputTokens, reasoningOutputTokens,
+                };
+                total = {
+                    totalTokens: total.totalTokens + last.totalTokens,
+                    inputTokens: total.inputTokens + inputTokens,
+                    cachedInputTokens: total.cachedInputTokens + cachedInputTokens,
+                    cacheWriteInputTokens: 0,
+                    outputTokens: total.outputTokens + outputTokens,
+                    reasoningOutputTokens: total.reasoningOutputTokens + reasoningOutputTokens,
+                };
+                return createTokenUsageNotification(sessionId, {total, last, modelContextWindow: 258400});
+            });
+            // A repeated delivery is deliberately synthetic: it must not add a second charge.
+            notifications.push(notifications[notifications.length - 1]!);
+            const agent = setupPromptWithTokenUsage(notifications);
+            const prompt = {sessionId, prompt: [{type: 'text' as const, text: 'test prompt'}]};
+            const first = await agent.prompt(prompt);
+            expect(first.usage).toEqual({
+                totalTokens: 564891, inputTokens: 77816, cachedReadTokens: 484864,
+                outputTokens: 2211, thoughtTokens: 591,
+            });
+            expect(first._meta).toMatchObject({
+                quota: {token_count: {
+                    totalTokens: 564891, inputTokens: 77816, cachedInputTokens: 484864,
+                    outputTokens: 2211, reasoningOutputTokens: 591,
+                }},
+            });
+            expect(mockFixture.getAcpConnectionEvents([]).at(-1)).toMatchObject({
+                args: [{update: {sessionUpdate: 'usage_update', used: 84849, size: 258400}}],
+            });
+
+            // First response of the next observed turn, line 99. Cancellation after it is synthetic.
+            notifications.splice(0, notifications.length, createTokenUsageNotification(sessionId, {
+                total: {totalTokens: 650006, inputTokens: 647544, cachedInputTokens: 484864,
+                    cacheWriteInputTokens: 0, outputTokens: 2462, reasoningOutputTokens: 591},
+                last: {totalTokens: 85115, inputTokens: 84864, cachedInputTokens: 0,
+                    cacheWriteInputTokens: 0, outputTokens: 251, reasoningOutputTokens: 0},
+                modelContextWindow: 258400,
+            }, 'next-turn-id'));
+            mockFixture.getCodexAppServerClient().turnStart = vi.fn().mockResolvedValue({
+                turn: {id: 'next-turn-id', items: [], status: 'inProgress', error: null},
+            });
+            mockFixture.getCodexAppServerClient().awaitTurnCompleted = vi.fn().mockImplementation(async () => {
+                for (const notification of notifications) mockFixture.sendServerNotification(notification);
+                return {threadId: sessionId, turn: {id: 'next-turn-id', items: [], status: 'interrupted', error: null}};
+            });
+            const cancelled = await agent.prompt(prompt);
+            expect(cancelled.stopReason).toBe('cancelled');
+            expect(cancelled.usage).toEqual({
+                totalTokens: 85115, inputTokens: 84864, cachedReadTokens: 0,
+                outputTokens: 251, thoughtTokens: 0,
+            });
+
+            const status = await agent.prompt({sessionId, prompt: [{type: 'text', text: '/status'}]});
+            expect(status.usage).toBeNull();
+            expect(agent.getSessionState(sessionId).lastTokenUsage?.totalTokens).toBe(85115);
+            notifications.length = 0;
+            expect((await agent.prompt(prompt)).usage).toBeNull();
         });
     });
 
