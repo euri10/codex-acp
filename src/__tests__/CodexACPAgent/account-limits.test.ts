@@ -9,6 +9,8 @@ import type {GetAccountRateLimitsResponse, RateLimitSnapshot} from "../../app-se
 import {createCodexMockTestFixture} from "../acp-test-utils";
 
 const completeResponse = (): GetAccountRateLimitsResponse => ({
+    accountId: null,
+    rateLimitUpsell: null,
     rateLimits: {
         limitId: "codex",
         limitName: "Codex",
@@ -61,6 +63,8 @@ const completeResponse = (): GetAccountRateLimitsResponse => ({
 describe("account limits extension", () => {
     it("keeps empty and explicit unlimited responses distinct", () => {
         const empty: GetAccountRateLimitsResponse = {
+            accountId: null,
+            rateLimitUpsell: null,
             rateLimits: {
                 limitId: null,
                 limitName: null,
@@ -122,7 +126,13 @@ describe("account limits extension", () => {
             rateLimitReachedType: "rate_limit_reached",
         };
 
-        const normalized = normalizeAccountLimits(mergeAccountLimits(completeResponse(), update));
+        const previous = completeResponse();
+        previous.accountId = "account-1";
+        previous.rateLimitUpsell = {banner_text: "Upgrade account capacity"};
+        const merged = mergeAccountLimits(previous, update);
+        expect(merged.accountId).toBe(previous.accountId);
+        expect(merged.rateLimitUpsell).toEqual(previous.rateLimitUpsell);
+        const normalized = normalizeAccountLimits(merged);
         expect(normalized.buckets[0]).toEqual({
             id: "codex",
             label: "Codex",

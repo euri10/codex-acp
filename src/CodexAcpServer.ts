@@ -372,6 +372,9 @@ export class CodexAcpServer {
             },
             agentCapabilities: {
                 _meta: {
+                    // Presence means "this agent pushes `_auth/status_update`". It
+                    // never carries a payload, and the client never asks for one.
+                    [AUTH_STATUS_META_KEY]: authStatusCapability(),
                     [ACCOUNT_LIMITS_META_KEY]: {
                         accountLimits: {
                             version: 1,
