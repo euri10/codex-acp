@@ -10,10 +10,12 @@ import {createCodexMockTestFixture} from "../acp-test-utils";
 
 const completeResponse = (): GetAccountRateLimitsResponse => ({
     accountId: null,
+    ordinaryUsageAllowed: null,
     rateLimitUpsell: null,
     rateLimits: {
         limitId: "codex",
         limitName: "Codex",
+        normalModelSlug: null,
         primary: {usedPercent: 82, windowDurationMins: 300, resetsAt: 4_102_444_800},
         secondary: null,
         credits: {hasCredits: true, unlimited: false, balance: "7.5"},
@@ -26,6 +28,7 @@ const completeResponse = (): GetAccountRateLimitsResponse => ({
         codex: {
             limitId: "codex",
             limitName: "Codex",
+            normalModelSlug: null,
             primary: {usedPercent: 82, windowDurationMins: 300, resetsAt: 4_102_444_800},
             secondary: null,
             credits: {hasCredits: true, unlimited: false, balance: "7.5"},
@@ -37,6 +40,7 @@ const completeResponse = (): GetAccountRateLimitsResponse => ({
         fast: {
             limitId: "fast",
             limitName: null,
+            normalModelSlug: null,
             primary: {usedPercent: 25, windowDurationMins: 90, resetsAt: 4_102_448_400},
             secondary: {usedPercent: 33, windowDurationMins: 10_080, resetsAt: 4_102_452_000},
             credits: null,
@@ -64,10 +68,12 @@ describe("account limits extension", () => {
     it("keeps empty and explicit unlimited responses distinct", () => {
         const empty: GetAccountRateLimitsResponse = {
             accountId: null,
+            ordinaryUsageAllowed: null,
             rateLimitUpsell: null,
             rateLimits: {
                 limitId: null,
                 limitName: null,
+                normalModelSlug: null,
                 primary: null,
                 secondary: null,
                 credits: null,
@@ -117,6 +123,7 @@ describe("account limits extension", () => {
         const update: RateLimitSnapshot = {
             limitId: "codex",
             limitName: null,
+            normalModelSlug: null,
             primary: {usedPercent: 91, windowDurationMins: null, resetsAt: null},
             secondary: null,
             credits: null,
@@ -148,6 +155,7 @@ describe("account limits extension", () => {
         const update: RateLimitSnapshot = {
             limitId: null,
             limitName: null,
+            normalModelSlug: null,
             primary: {usedPercent: 91, windowDurationMins: null, resetsAt: null},
             secondary: null,
             credits: null,

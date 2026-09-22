@@ -59,6 +59,7 @@ function mergeRateLimit(previous: RateLimitSnapshot | undefined, update: RateLim
     return {
         limitId: update.limitId ?? previous?.limitId ?? null,
         limitName: update.limitName ?? previous?.limitName ?? null,
+        normalModelSlug: update.normalModelSlug ?? previous?.normalModelSlug ?? null,
         primary: mergeWindow(previous?.primary ?? null, update.primary),
         secondary: mergeWindow(previous?.secondary ?? null, update.secondary),
         credits: update.credits ?? previous?.credits ?? null,
