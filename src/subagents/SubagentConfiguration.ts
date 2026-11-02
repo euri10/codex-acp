@@ -14,7 +14,7 @@ export function subagentConfigurationOptions(
     if (configuration.model) {
         options.push(createSubagentModelConfigOption(models.availableModels, models.currentModel, configuration.model));
     }
-    if (configuration.effort !== null) {
+    if (configuration.effort != null) {
         const model = models.availableModels.find(model => model.id === configuration.model || model.model === configuration.model);
         const effort = model?.supportedReasoningEfforts.find(option => option.reasoningEffort === configuration.effort)
             ?? {reasoningEffort: configuration.effort, description: "Current reasoning effort"};
