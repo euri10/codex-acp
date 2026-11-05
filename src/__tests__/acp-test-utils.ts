@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import {AgentMode} from "../AgentMode";
 import {DEFAULT_COLLABORATION_MODE} from "../CollaborationModeConfig";
-import {afterEach, beforeEach, expect, vi} from "vitest";
+import {afterEach, beforeEach, expect, onTestFinished, vi} from "vitest";
 import type {Model, ReasoningEffortOption} from "../app-server/v2";
 import {CodexSubagentEventRouter} from "../subagents/CodexSubagentEventRouter";
 import {CodexEventHandler} from "../CodexEventHandler";
@@ -201,7 +201,13 @@ export function createTestFixture(): TestFixture {
         ...process.env,
         CODEX_HOME: codexHome,
     });
-    codexConnection.process.on("exit", () => {
+    const closed = new Promise<void>(resolve => codexConnection.process.once("close", () => resolve()));
+    onTestFinished(async () => {
+        codexConnection.process.stdin.end();
+        codexConnection.process.kill();
+        // Reap the child and close its pipes before another fixture starts.
+        await closed;
+        codexConnection.connection.dispose();
         removeDirectoryWithRetry(codexHome);
     });
 
