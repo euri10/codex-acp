@@ -95,8 +95,6 @@ export function codexResponse(method: string, params?: {threadId?: string}): unk
         case "thread/list":
         case "thread/backgroundTerminals/list":
             return {data: [], nextCursor: null};
-        case "thread/read":
-            return {thread: createThread()};
         default:
             return {};
     }

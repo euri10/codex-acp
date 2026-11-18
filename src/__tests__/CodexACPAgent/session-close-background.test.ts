@@ -46,6 +46,12 @@ describe.each([1, 2] as const)("ACP v%s background teardown", version => {
 describe("Background cleanup failures", () => {
     it("cleans up verified child processes without acting on foreign ownership", async () => {
         const h = await connectSession();
+        // Before child discovery: native metadata keeps each thread's recorded parent.
+        h.setCodexResponse("thread/read", async params => {
+            const id = (params as {threadId: string}).threadId;
+            return {thread: {...createThread(), id,
+                parentThreadId: id === "child" ? sessionId : id === "foreign" ? "other-root" : null}};
+        });
         const threads: string[] = [];
         for (const id of ["child", "foreign"]) {
             h.emit(itemStarted({type: "subAgentActivity", id: `activity-${id}`, model: null, reasoningEffort: null,

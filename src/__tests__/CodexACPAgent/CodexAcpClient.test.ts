@@ -611,7 +611,7 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         });
     });
 
-    function createPermissionProfileFixture(config: Record<string, unknown>) {
+    function createPermissionProfileFixture(config: Record<string, unknown>, saved: Record<string, unknown> = {}) {
         vi.stubEnv("INITIAL_AGENT_MODE", undefined);
         const mockFixture = createCodexMockTestFixture();
         const codexAcpClient = mockFixture.getCodexAcpClient();
@@ -638,19 +638,34 @@ describe('ACP server test', { timeout: 40_000 }, () => {
             reasoningEffort: "medium",
             serviceTier: null,
             activePermissionProfile: {id: "team-default", extends: ":workspace"},
-            approvalPolicy: "on-request",
-            approvalsReviewer: "user",
+            // A saved session reports the approvals its profile mode applied.
+            approvalPolicy: config["approval_policy"] ?? "on-request",
+            approvalsReviewer: config["approvals_reviewer"] ?? "user",
+            ...saved,
         };
         vi.spyOn(codexAppServerClient, "threadStart").mockResolvedValue(threadResponse as any);
         vi.spyOn(codexAppServerClient, "threadResume").mockResolvedValue(threadResponse as any);
         vi.spyOn(codexAppServerClient, "threadFork").mockResolvedValue(threadResponse as any);
         vi.spyOn(codexAppServerClient, "threadReadWithHistory").mockResolvedValue({thread: threadResponse.thread} as any);
+        vi.spyOn(codexAppServerClient, "threadRead").mockResolvedValue({thread: {...threadResponse.thread, modelProvider: "openai"}} as any);
         vi.spyOn(codexAppServerClient, "listModels").mockResolvedValue({
             data: [createTestModel({id: "gpt-5"})],
             nextCursor: null,
         });
         return {codexAcpAgent, listPermissionProfilesSpy, configReadSpy};
     }
+
+    it.each(["loadSession", "resumeSession"] as const)(
+        'refuses to widen saved custom profile approvals to the configured defaults via %s', async method => {
+            const {codexAcpAgent} = createPermissionProfileFixture(
+                {approval_policy: "never", approvals_reviewer: "auto_review"},
+                {approvalPolicy: "on-request", approvalsReviewer: "user"},
+            );
+
+            await expect(codexAcpAgent[method]({cwd: "/workspace", mcpServers: [], sessionId: "thread-id"}))
+                .rejects.toMatchObject({code: -32600, data: {reason: "resume_permissions_unavailable"}});
+        },
+    );
 
     it.each([
         "newSession", "loadSession", "resumeSession", "forkSession",
