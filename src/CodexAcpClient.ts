@@ -26,7 +26,8 @@ import type {
 import type {ServiceTier} from "./app-server/ServiceTier";
 import type {JsonValue} from "./app-server/serde_json/JsonValue";
 import {ModelId} from "./ModelId";
-import {AgentMode} from "./AgentMode";
+import {AgentMode, type NativeResumePermissions} from "./AgentMode";
+import {isNativeResumePermissionsUnavailable, readResumePermissionMode, restoredPermissionMode, resumePermissionOverrides, resumePermissionsUnavailable} from "./ResumePermissions";
 import path from "node:path";
 import {isDeepStrictEqual} from "node:util";
 import {logger} from "./Logger";
@@ -113,6 +114,7 @@ type ResumedThread = {
     materialized: boolean;
     /** The mode that the resume response reports. Null when the thread has no rollout yet. */
     collaborationMode: ModeKind | null;
+    permissions?: NativeResumePermissions;
 };
 
 /**
@@ -641,6 +643,24 @@ export class CodexAcpClient {
      * error instead of the raw Codex message.
      */
     private async resumeThread(params: ThreadResumeParams): Promise<ResumedThread> {
+        // A redundant Provider override makes native Codex discard the persisted
+        // Model/effort. Keep the override only for an actual Provider change.
+        try {
+            const stored = await this.codexClient.threadRead({threadId: params.threadId});
+            if (stored?.thread?.id !== params.threadId
+                || typeof stored.thread.modelProvider !== "string"
+                || stored.thread.modelProvider.length === 0) {
+                throw new Error("Invalid thread/read metadata: expected the requested thread and its Model Provider");
+            }
+            if (stored.thread.modelProvider === params.modelProvider) {
+                params = {...params};
+                delete params.modelProvider;
+            }
+        } catch (err) {
+            // Unknown/unmaterialized threads retain thread/resume's existing error
+            // and live-thread fallback; unrelated read failures remain actionable.
+            if (!isUnknownThreadError(err)) throw err;
+        }
         try {
             const response = await this.codexClient.threadResume(params);
             return {
@@ -653,8 +673,10 @@ export class CodexAcpClient {
                 itemsBackwardsCursor: response.itemsBackwardsCursor ?? null,
                 materialized: true,
                 collaborationMode: response.collaborationMode?.mode ?? null,
+                permissions: response,
             };
         } catch (err) {
+            if (isNativeResumePermissionsUnavailable(err)) throw resumePermissionsUnavailable();
             if (isThreadActiveWriterError(err)) throw threadActiveWriterRequestError(params.threadId, err);
             if (!isMissingRolloutError(err)) throw err;
             let response;
@@ -690,6 +712,7 @@ export class CodexAcpClient {
         previousInstructions?: SessionInstructions,
     ): Promise<SessionMetadata> {
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
+        const requestedMode = readResumePermissionMode(request._meta);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         await this.refreshSkills(request.cwd, additionalDirectories);
 
@@ -701,9 +724,15 @@ export class CodexAcpClient {
             cwd: request.cwd,
             modelProvider: await this.getResumeModelProvider(),
             threadId: request.sessionId,
+            ...resumePermissionOverrides(requestedMode, request.cwd, additionalDirectories),
             ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
         }, request, previousInstructions);
         onSubscribed?.();
+        const agentMode = restoredPermissionMode(response, additionalDirectories, requestedMode, AgentMode.all(
+            permissionProfileMetadata.permissionProfiles,
+            permissionProfileMetadata.approvalPolicy,
+            permissionProfileMetadata.approvalsReviewer,
+        ));
         const codexModels = await this.fetchAvailableModels();
         const currentModelId = this.createModelId(codexModels, response.model, response.reasoningEffort).toString();
         return {
@@ -714,6 +743,7 @@ export class CodexAcpClient {
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
             threadStatus: response.thread.status,
             sessionTitle: normalizeSessionTitle(listedSessionTitle(response.thread)),
+            agentMode,
             modelProvider: response.modelProvider,
             currentServiceTier: response.serviceTier ?? null,
             additionalDirectories,
@@ -753,6 +783,7 @@ export class CodexAcpClient {
         previousInstructions?: SessionInstructions,
     ): Promise<SessionMetadataWithThread> {
         const instructions = await this.resolveSessionInstructions(request, previousInstructions);
+        const requestedMode = readResumePermissionMode(request._meta);
         const additionalDirectories = readAdditionalDirectories(request.cwd, request.additionalDirectories, request._meta);
         await this.refreshSkills(request.cwd, additionalDirectories);
 
@@ -764,9 +795,15 @@ export class CodexAcpClient {
             cwd: request.cwd,
             modelProvider: await this.getResumeModelProvider(),
             threadId: request.sessionId,
+            ...resumePermissionOverrides(requestedMode, request.cwd, additionalDirectories),
             ...(instructions?.text !== undefined ? {developerInstructions: instructions.developerInstructions} : {}),
         }, request, previousInstructions);
         onSubscribed?.();
+        const agentMode = restoredPermissionMode(response, additionalDirectories, requestedMode, AgentMode.all(
+            permissionProfileMetadata.permissionProfiles,
+            permissionProfileMetadata.approvalPolicy,
+            permissionProfileMetadata.approvalsReviewer,
+        ));
         // Resume cursors bound durable history; later turns arrive through live events.
         // A null paginated cursor means there was no durable history at resume time.
         let thread: Thread = {...response.thread, turns: []};
@@ -797,6 +834,7 @@ export class CodexAcpClient {
             models: codexModels,
             // Codex sends no thread/settings/updated on a resume. The response holds the mode.
             collaborationMode: response.collaborationMode ?? this.getCollaborationMode(response.thread.id),
+            agentMode,
             modelProvider: response.modelProvider,
             currentServiceTier: response.serviceTier ?? null,
             thread,

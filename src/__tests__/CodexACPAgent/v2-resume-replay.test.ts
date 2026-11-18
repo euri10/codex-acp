@@ -188,6 +188,11 @@ function codexResponse(
         case "thread/start":
         case "thread/resume":
             return {
+                approvalPolicy: "on-request",
+                approvalsReviewer: "auto_review",
+                sandbox: {type: "workspaceWrite", writableRoots: [], networkAccess: false,
+                    excludeTmpdirEnvVar: false, excludeSlashTmp: false},
+                activePermissionProfile: {id: ":workspace", extends: null},
                 thread: createThread(paginated ? {historyMode: "paginated"} : {}),
                 model: "gpt-5",
                 modelProvider: "openai",
@@ -399,12 +404,14 @@ describe('ACP v2 resume replay: review-mode ids, reviewer-prompt hiding, primers
             modelProvider: "openai",
             cwd,
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({
             thread: createThread({turns: reviewReplayTurns}),
         });
+        appServer.threadRead = vi.fn().mockResolvedValue({thread: createThread()});
 
         await agent.initialize({protocolVersion: 1});
         await agent.loadSession({sessionId, cwd, mcpServers: []});
@@ -543,10 +550,12 @@ describe('resume replay of Codex file citations', () => {
             modelProvider: "openai",
             cwd,
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: createThread({turns: citationTurns})});
+        appServer.threadRead = vi.fn().mockResolvedValue({thread: createThread()});
 
         await agent.initialize({protocolVersion: 1});
         await agent.loadSession({sessionId, cwd, mcpServers: []});
@@ -613,10 +622,12 @@ describe('resume replay of async question answers', () => {
             modelProvider: "openai",
             cwd,
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: createThread({turns: answerTurns})});
+        appServer.threadRead = vi.fn().mockResolvedValue({thread: createThread()});
 
         await agent.initialize({protocolVersion: 1});
         await agent.loadSession({sessionId, cwd, mcpServers: []});

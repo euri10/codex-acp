@@ -39,8 +39,9 @@ describe("CodexACPAgent - loadSession", () => {
         } as unknown as Thread;
         appServer.threadResume = vi.fn().mockResolvedValue({
             thread, model: model.id, modelProvider: "openai", cwd: "/workspace",
-            approvalPolicy: "never", sandbox: {type: "dangerFullAccess"}, reasoningEffort: model.defaultReasoningEffort,
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"}, reasoningEffort: model.defaultReasoningEffort,
         });
+        appServer.threadRead = vi.fn().mockResolvedValue({thread: {...thread, modelProvider: "openai"}});
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread});
         await agent.initialize({protocolVersion: 1, clientCapabilities: {}});
         await agent.loadSession({sessionId: thread.id, cwd: "/workspace", mcpServers: []});
@@ -87,9 +88,10 @@ describe("CodexACPAgent - loadSession", () => {
         } as unknown as Thread;
         appServer.threadResume = vi.fn().mockResolvedValue({
             thread, model: model.id, modelProvider: "openai", cwd: "/workspace",
-            approvalPolicy: "never", sandbox: {type: "dangerFullAccess"},
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
+        appServer.threadRead = vi.fn().mockResolvedValue({thread: {...thread, modelProvider: "openai"}});
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread});
 
         await agent.initialize({protocolVersion: 1, clientCapabilities: {}});
@@ -260,11 +262,13 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/workspace",
             approvalPolicy: "never",
             sandbox: {type: "dangerFullAccess"},
+            approvalsReviewer: "user",
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: root});
         // The adapter reads one turn of a child for each generation.
         appServer.threadRead = vi.fn().mockImplementation(({threadId}) => {
+            if (threadId === root.id) return Promise.resolve({thread: root});
             if (threadId === "orphan-history") return Promise.reject(new Error("missing child history"));
             return Promise.resolve({thread: {...child, historyMode: "legacy"}});
         });
@@ -394,11 +398,13 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/workspace",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
         appServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: root});
-        appServer.threadRead = vi.fn().mockResolvedValue({thread: child});
+        appServer.threadRead = vi.fn().mockImplementation(({threadId}) =>
+            Promise.resolve({thread: threadId === root.id ? root : child}));
 
         await agent.initialize({
             protocolVersion: 1,
@@ -550,6 +556,7 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/workspace",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: {type: "dangerFullAccess"},
             reasoningEffort: model.defaultReasoningEffort,
         });
@@ -790,9 +797,11 @@ describe("CodexACPAgent - loadSession", () => {
             modelProvider: "openai",
             cwd: "/test/project",
             approvalPolicy: "never",
+            approvalsReviewer: "user",
             sandbox: { type: "dangerFullAccess" },
             reasoningEffort: model.defaultReasoningEffort,
         });
+        codexAppServerClient.threadRead = vi.fn().mockResolvedValue({thread});
         codexAppServerClient.threadReadWithHistory = vi.fn().mockResolvedValue({
             thread: thread,
         });
@@ -842,8 +851,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             sandbox: {type: "dangerFullAccess"},
+            approvalsReviewer: "user",
             reasoningEffort: model.defaultReasoningEffort,
         });
+        appServer.threadRead = vi.fn().mockResolvedValue({thread: {id: "session-1", modelProvider: "openai"}});
         const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
         appServer.threadItemsList = vi.fn()
             .mockResolvedValueOnce({data: [message("last")], nextCursor: null, backwardsCursor: null})
@@ -877,8 +888,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             sandbox: {type: "dangerFullAccess"},
+            approvalsReviewer: "user",
             reasoningEffort: model.defaultReasoningEffort,
         });
+        appServer.threadRead = vi.fn().mockResolvedValue({thread: {id: "session-1", modelProvider: "openai"}});
         const message = (id: string) => ({turnId: "turn-1", item: {type: "agentMessage", id, text: id, phase: null, memoryCitation: null, delivery: null, questions: null}});
         let closed: Promise<unknown> = Promise.resolve();
         appServer.threadItemsList = vi.fn()
@@ -986,8 +999,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             sandbox: { type: "dangerFullAccess" },
+            approvalsReviewer: "user",
             reasoningEffort: model.defaultReasoningEffort,
         });
+        codexAppServerClient.threadRead = vi.fn().mockResolvedValue({thread});
         codexAppServerClient.threadReadWithHistory = vi.fn().mockResolvedValue({
             thread: thread,
         });
@@ -1078,8 +1093,10 @@ describe("CodexACPAgent - loadSession", () => {
             cwd: "/test/project",
             approvalPolicy: "never",
             sandbox: { type: "dangerFullAccess" },
+            approvalsReviewer: "user",
             reasoningEffort: model.defaultReasoningEffort,
         });
+        codexAppServerClient.threadRead = vi.fn().mockResolvedValue({thread});
         codexAppServerClient.threadReadWithHistory = vi.fn().mockResolvedValue({
             thread: thread,
         });

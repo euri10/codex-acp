@@ -101,10 +101,11 @@ describe("paginated thread history", () => {
             thread: {id: "history", historyMode: mode, name: "Resume metadata", turns: []},
             itemsBackwardsCursor: boundary,
             model: "gpt-5", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null,
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
         } as any);
         const read = vi.spyOn(appServer, "threadRead").mockImplementation(async ({includeTurns}) => ({
             thread: {
-                id: "history", historyMode: mode, name: "Later metadata",
+                id: "history", modelProvider: "openai", historyMode: mode, name: "Later metadata",
                 turns: includeTurns ? stored : [],
             } as any,
         }));
@@ -116,7 +117,8 @@ describe("paginated thread history", () => {
         expect(loaded.thread.turns).toEqual([]);
         expect(await collect(loaded.history)).toEqual(expectedIds);
         expect(loaded.thread.name).toBe(mode === "paginated" ? "Resume metadata" : "Later metadata");
-        expect(read.mock.calls).toEqual(mode === "paginated" ? [] : [
+        expect(read.mock.calls).toEqual(mode === "paginated" ? [[{threadId: "history"}]] : [
+            [{threadId: "history"}],
             [{threadId: "history"}],
             [{threadId: "history", includeTurns: true}],
         ]);

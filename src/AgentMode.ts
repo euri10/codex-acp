@@ -4,9 +4,17 @@ import type {
     PermissionProfileSummary,
     SandboxMode,
     SandboxPolicy,
+    ThreadResumeResponse,
 } from "./app-server/v2";
 import type {SessionConfigOption, SessionMode, SessionModeState} from "@agentclientprotocol/sdk/unstable";
+import {isDeepStrictEqual} from "node:util";
 import {AIR_KIND_KEY, airOnlyMeta} from "./AirExtension";
+import type {ActivePermissionProfile} from "./app-server/v2/ActivePermissionProfile";
+
+// The experimental profile field is omitted from generated ThreadResumeResponse.
+export type NativeResumePermissions = Pick<ThreadResumeResponse, "approvalPolicy" | "approvalsReviewer" | "sandbox"> & {
+    activePermissionProfile?: ActivePermissionProfile | null;
+};
 
 export const MODE_CONFIG_ID = "mode";
 const PERMISSION_PROFILE_MODE_PREFIX = "permission-profile:";
@@ -188,6 +196,43 @@ export class AgentMode {
     static find(modeId: string, availableModes: AgentMode[] = AgentMode.all()): AgentMode | null {
         const match = availableModes.find(m => m.id === modeId);
         return match ?? null;
+    }
+
+    /** Identify a supported preset without widening a native policy; null requires an explicit operator choice. */
+    static fromNativePermissions(
+        permissions: NativeResumePermissions | undefined,
+        additionalDirectories: string[],
+        availableModes: AgentMode[] = AgentMode.all(),
+    ): AgentMode | null {
+        const sandbox = permissions?.sandbox;
+        const profile = permissions?.activePermissionProfile;
+        const expectedProfile = sandbox?.type === "readOnly" ? ":read-only"
+            : sandbox?.type === "workspaceWrite" ? ":workspace"
+            : sandbox?.type === "dangerFullAccess" ? ":danger-full-access" : null;
+        // Native's legacy projection loses custom read allowlists. Missing
+        // provenance is safe only for dangerFullAccess: native emits that shape
+        // only for full-disk write access without narrowing filesystem entries.
+        // A configured custom profile restores only as the same profile with the
+        // configured approval defaults its mode applies; turns re-send that id.
+        if (profile != null && !profile.id.startsWith(":")) {
+            return availableModes.find(mode => mode.permissionProfileId === profile.id
+                && mode.approvalPolicy === permissions?.approvalPolicy
+                && mode.approvalsReviewer === permissions?.approvalsReviewer) ?? null;
+        }
+        if (profile == null ? sandbox?.type !== "dangerFullAccess"
+            : profile.id !== expectedProfile || profile.extends != null) return null;
+        const actualSandbox = sandbox?.type === "workspaceWrite" && Array.isArray(sandbox.writableRoots)
+            ? {...sandbox, writableRoots: [...new Set(sandbox.writableRoots)].sort()}
+            : sandbox;
+        return AgentMode.all().find(mode => {
+            if (mode.sandboxPolicy === null) return false;
+            const expectedSandbox = mode.sandboxPolicy.type === "workspaceWrite"
+                ? {...mode.sandboxPolicy, writableRoots: [...new Set(additionalDirectories)].sort()}
+                : mode.sandboxPolicy;
+            return mode.approvalPolicy === permissions?.approvalPolicy
+                && mode.approvalsReviewer === permissions?.approvalsReviewer
+                && isDeepStrictEqual(expectedSandbox, actualSandbox);
+        }) ?? null;
     }
 
     static getInitialAgentMode(

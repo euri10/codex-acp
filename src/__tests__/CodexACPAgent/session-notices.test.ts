@@ -205,6 +205,7 @@ describe("session notices", () => {
             itemsBackwardsCursor: null,
         });
         vi.spyOn(appServer, "threadReadWithHistory").mockResolvedValue({thread});
+        vi.spyOn(appServer, "threadRead").mockResolvedValue({thread});
         mockCompletedPrompt(fixture);
         await agent.initialize({protocolVersion: 1, clientCapabilities: noticeCapabilities});
         const request = {sessionId, cwd: thread.cwd, mcpServers: []};

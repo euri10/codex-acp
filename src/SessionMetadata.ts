@@ -9,12 +9,15 @@ import type {
     ThreadStatus,
 } from "./app-server/v2";
 import type {SessionInstructions} from "./ClientSystemPrompt";
+import type {AgentMode} from "./AgentMode";
 
 export type SessionMetadata = {
     sessionId: string,
     currentModelId: string,
     models: Model[],
     collaborationMode: ModeKind,
+    /** Last effective native preset. Absent for new Sessions; unresolved resume permissions reject the load. */
+    agentMode?: AgentMode,
     modelProvider?: string | null,
     currentServiceTier?: string | null,
     threadStatus?: ThreadStatus,

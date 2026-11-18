@@ -26,7 +26,8 @@ describeIntegration("integration: ACP v2 foreground state", () => {
         });
         const processHandle = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
             cwd: process.cwd(),
-            env: {...process.env, CODEX_HOME: codexHome},
+            // The Resume patch requires a representable saved preset; permission refusals have dedicated tests.
+            env: {...process.env, CODEX_HOME: codexHome, INITIAL_AGENT_MODE: "agent-full-access"},
             stdio: ["pipe", "pipe", "pipe"],
         });
         let stderr = "";

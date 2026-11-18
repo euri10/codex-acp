@@ -44,7 +44,9 @@ export function defaultAnswer(method: string, params: unknown): unknown {
         case "config/read": return {config: {}, origins: {}, layers: null};
         case "skills/list": return {data: []};
         case "thread/start": return {thread: thread(p.ephemeral ? "title-thread" : "thread-new"), model: "gpt-test", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null, cwd: "/work"};
-        case "thread/resume": return {thread: thread(p.threadId ?? "t"), model: "gpt-test", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null, itemsBackwardsCursor: null, cwd: "/work"};
+        case "thread/read": return {thread: thread(p.threadId ?? "t")};
+        case "thread/resume": return {thread: thread(p.threadId ?? "t"), model: "gpt-test", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null, itemsBackwardsCursor: null, cwd: "/work",
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"}};
         case "turn/start": return {turn: {id: `turn-${Math.random().toString(36).slice(2, 8)}`, items: [], status: "inProgress", error: null}};
         case "thread/list": return {data: [], nextCursor: null};
         case "thread/goal/get": return {goal: null};

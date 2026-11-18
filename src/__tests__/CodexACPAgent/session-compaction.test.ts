@@ -376,6 +376,7 @@ describe("session compaction", () => {
             itemsBackwardsCursor: null,
         });
         vi.spyOn(appServer, "threadReadWithHistory").mockResolvedValue({thread});
+        vi.spyOn(appServer, "threadRead").mockResolvedValue({thread});
         await agent.initialize({protocolVersion: 1, clientCapabilities: compactionCapabilities});
         await agent.loadSession({sessionId, cwd: thread.cwd, mcpServers: []});
 

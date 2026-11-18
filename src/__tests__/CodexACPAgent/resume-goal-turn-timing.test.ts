@@ -87,7 +87,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
         closeClient = () => client.connection.close();
         fireGoalTurnDuring(client, "model/list");
 
-        client.setCodexResponse("thread/read", async () => ({thread: createThread()}));
+        client.setCodexResponse("thread/read", async () => ({thread: {...createThread(), id: secondSessionId}}));
         await client.request("session/resume", {sessionId: secondSessionId, cwd, replayFrom: {type: "start"}});
         await settle();
         client.emit(turnCompletedFor(secondSessionId, secondTurnId));
@@ -140,7 +140,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
     it('v1 session/load: renders the goal turn started during setup', async () => {
         const client = await connectSession(1);
         closeClient = () => client.connection.close();
-        client.setCodexResponse("thread/read", async () => ({thread: createThread()}));
+        client.setCodexResponse("thread/read", async () => ({thread: {...createThread(), id: secondSessionId}}));
         fireGoalTurnDuring(client, "model/list");
 
         await client.request("session/load", {sessionId: secondSessionId, cwd, mcpServers: []});
@@ -184,7 +184,7 @@ describe('baseline tracker installed before thread/resume, so an auto-started go
             ],
         };
         client.setCodexResponse("thread/read", async () => ({
-            thread: {...createThread(), turns: [replayedTurn]},
+            thread: {...createThread(), id: secondSessionId, turns: [replayedTurn]},
         }));
         fireGoalTurnDuring(client, "model/list");
 

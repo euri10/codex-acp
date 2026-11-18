@@ -120,6 +120,11 @@ function codexResponse(method: string, params: unknown, turns: HistoryTurns): un
     switch (method) {
         case "thread/resume":
             return {
+                approvalPolicy: "on-request",
+                approvalsReviewer: "auto_review",
+                sandbox: {type: "workspaceWrite", writableRoots: [], networkAccess: false,
+                    excludeTmpdirEnvVar: false, excludeSlashTmp: false},
+                activePermissionProfile: {id: ":workspace", extends: null},
                 thread: createThread(threadId ?? rootId),
                 model: "gpt-5",
                 modelProvider: "openai",

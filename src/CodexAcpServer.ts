@@ -161,6 +161,7 @@ import packageJson from "../package.json";
 import {isJetBrains2026_1Client} from "./JBUtils";
 import {clientSupportsNotices} from "./SessionNotice";
 import {AsyncQuestionClient, AsyncQuestionElicitations, renderAsyncQuestionReply} from "./CodexAsyncQuestions";
+import {resumePermissionAcknowledgement} from "./ResumePermissions";
 import {
     createAgentTextMessageChunk,
     createAgentTextThoughtChunk,
@@ -1392,10 +1393,9 @@ export class CodexAcpServer {
             availableModels: models,
             supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
             supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
-            agentMode: AgentMode.getInitialAgentMode(
-                availableAgentModes,
-                sessionMetadata.activePermissionProfileId,
-            ),
+            agentMode: (sessionMetadata.agentMode
+                    && (AgentMode.find(sessionMetadata.agentMode.id, availableAgentModes) ?? sessionMetadata.agentMode))
+                ?? AgentMode.getInitialAgentMode(availableAgentModes, sessionMetadata.activePermissionProfileId),
             availableAgentModes,
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,
@@ -1896,6 +1896,7 @@ export class CodexAcpServer {
             models: modelState,
             modes: modeState,
             ...this.createSessionConfigOptionsResponse(this.getSessionState(sessionId)),
+            ...resumePermissionAcknowledgement(params._meta),
         };
     }
 
@@ -1982,6 +1983,7 @@ export class CodexAcpServer {
             models: modelState,
             modes: modeState,
             ...this.createSessionConfigOptionsResponse(this.getSessionState(sessionId)),
+            ...resumePermissionAcknowledgement(params._meta),
         };
     }
 
@@ -1998,7 +2000,10 @@ export class CodexAcpServer {
             await this.loadSessionAndReplayHistory(request);
         }
         await this.snapshotSessionStateV2(params.sessionId);
-        return this.createSessionSetupResponseV2(this.getSessionState(params.sessionId));
+        return {
+            ...this.createSessionSetupResponseV2(this.getSessionState(params.sessionId)),
+            ...resumePermissionAcknowledgement(params._meta),
+        };
     }
 
     private async snapshotSessionStateV2(sessionId: string): Promise<void> {
@@ -3627,10 +3632,9 @@ export class CodexAcpServer {
             availableModels: models,
             supportedReasoningEfforts: currentModel?.supportedReasoningEfforts ?? [],
             supportedInputModalities: currentModel?.inputModalities ?? ["text", "image"],
-            agentMode: AgentMode.getInitialAgentMode(
-                availableAgentModes,
-                sessionMetadata.activePermissionProfileId,
-            ),
+            agentMode: (sessionMetadata.agentMode
+                    && (AgentMode.find(sessionMetadata.agentMode.id, availableAgentModes) ?? sessionMetadata.agentMode))
+                ?? AgentMode.getInitialAgentMode(availableAgentModes, sessionMetadata.activePermissionProfileId),
             availableAgentModes,
             collaborationMode: sessionMetadata.collaborationMode,
             currentTurnId: null,

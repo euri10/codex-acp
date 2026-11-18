@@ -67,6 +67,56 @@ The adapter advertises ACP auth methods during initialization. Clients can authe
 
 ## Runtime options
 
+### Resuming settings
+
+`session/load` and `session/resume` let Codex restore its last effective model and
+reasoning effort when the configured provider is unchanged; explicit Codex
+configuration overrides still apply. An explicit change
+to a different provider retains Codex's provider-switch behavior. Settings
+selected in the client but never used in a prompt are not persisted by the adapter.
+
+Native permissions restore only when they exactly match a supported mode,
+including Full access. Read-only and workspace modes additionally require the
+corresponding native built-in permission profile: the legacy sandbox projection
+can hide custom read restrictions. Exact Full access can also restore without
+profile metadata. Unknown or missing permission settings reject load/resume;
+the adapter does not install a Session, choose a fallback or send a prompt.
+Startup mode defaults apply only to new sessions.
+
+Clients can offer an explicit replacement choice using the
+`io.github.euri10.louiselm.resumePermissions` extension. A recoverable ACP error
+has code `-32600` and data:
+
+```json
+{
+  "reason": "resume_permissions_unavailable",
+  "io.github.euri10.louiselm.resumePermissions": {
+    "version": 1,
+    "modes": [{"id": "read-only", "name": "Read-only", "description": "..."}]
+  }
+}
+```
+
+`modes` contains the four supported mode descriptors. The client may display
+them alongside Cancel; it must not select a mode automatically or treat this as
+an approval request. Only after an explicit choice, retry the original
+`session/load` or `session/resume` with
+`_meta["io.github.euri10.louiselm.resumePermissions"] = {"version":1,"modeId":"read-only"}`
+(using the selected ID). This replaces the saved permission policy, subject to
+current native constraints; it does not change Model or effort. A successful
+explicit retry acknowledges the same object in response `_meta`, only after
+native permissions match the choice. Missing acknowledgement is not consent to
+continue. Cancellation leaves the failed load untouched; no retry or prompt is
+sent by the adapter.
+
+An older native live-thread fallback may expose no effective permission data
+for a Session that has never received a prompt. That empty-history Session
+cannot be safely acknowledged as restored; start a new Session instead. Its
+error reason is `resume_unmaterialized_unavailable`, without replacement choices
+that cannot succeed on that runtime.
+
+### Environment variables
+
 - `CODEX_API_KEY` - API key used when the API-key auth method is selected. Takes precedence over `OPENAI_API_KEY`.
 - `OPENAI_API_KEY` - fallback API key used when the API-key auth method is selected.
 - `CODEX_PATH` - run a specific Codex executable instead of the bundled package dependency.

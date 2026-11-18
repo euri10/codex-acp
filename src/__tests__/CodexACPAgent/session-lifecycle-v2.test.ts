@@ -57,6 +57,11 @@ function codexResponse(method: string, replayTurns: Thread["turns"] = [], thread
         case "thread/start":
         case "thread/resume":
             return {
+                approvalPolicy: "on-request",
+                approvalsReviewer: "auto_review",
+                sandbox: {type: "workspaceWrite", writableRoots: [], networkAccess: false,
+                    excludeTmpdirEnvVar: false, excludeSlashTmp: false},
+                activePermissionProfile: {id: ":workspace", extends: null},
                 thread: createThread(thread),
                 model: "gpt-5",
                 modelProvider: "openai",
@@ -147,7 +152,8 @@ async function connectV2Client(options?: {
             }
         }
         if (options?.activePermissionProfileId && ["thread/start", "thread/resume", "thread/fork"].includes(method)) {
-            return {...response, activePermissionProfile: {id: options.activePermissionProfileId, extends: null}};
+            // A custom profile mode applies the configured (default) approval reviewer.
+            return {...response, approvalsReviewer: "user", activePermissionProfile: {id: options.activePermissionProfileId, extends: null}};
         }
         return response;
     });
@@ -277,24 +283,6 @@ describe('Session lifecycle over ACP v2', () => {
                 .toMatchFileSnapshot(`data/session-lifecycle-v2-fast-mode-${enabled ? "on" : "off"}.json`);
         });
     });
-
-    it.each([null, {type: "start"}] as const)(
-        'preserves the default profile on an unprompted v2 resume with replayFrom=%s', async replayFrom => {
-            const {connection} = await connectV2Client({
-                permissionProfiles: [{id: "dev", description: null, allowed: true}],
-                activePermissionProfileId: "dev",
-                defaultPermissionProfileId: "dev",
-                failMethod: {method: "thread/resume", error: new Error(`no rollout found for thread id ${sessionId}`)},
-            });
-            closeClient = () => connection.close();
-            await connection.agent.request(acpV2.methods.agent.session.new, {cwd});
-
-            const response = await connection.agent.request(acpV2.methods.agent.session.resume, {sessionId, cwd, replayFrom});
-
-            expect(response.configOptions?.find(option => option.configId === MODE_CONFIG_ID)?.currentValue)
-                .toBe("permission-profile:dev");
-        },
-    );
 
     const skills = (name: string): SkillsListResponse => ({
         data: [{

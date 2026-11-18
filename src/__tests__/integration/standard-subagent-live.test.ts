@@ -53,6 +53,7 @@ describeIntegration("integration: live standard subagents", () => {
         mkdirSync(codexHome);
         writeCodexHomeConfig(codexHome, {
             model: INTEGRATION_MODEL_ID.model, model_reasoning_effort: INTEGRATION_MODEL_ID.effort,
+            approval_policy: "never", approvals_reviewer: "user", sandbox_mode: "danger-full-access",
             web_search: "disabled", model_provider: "integration",
             "model_providers.integration.name": "Local integration mock",
             "model_providers.integration.base_url": mock.baseUrl, "model_providers.integration.wire_api": "responses",
@@ -60,8 +61,8 @@ describeIntegration("integration: live standard subagents", () => {
         appendFileSync(join(codexHome, "config.toml"), "\nfeatures.multi_agent = true\nfeatures.multi_agent_v2 = true\n");
         const processHandle = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
             cwd: process.cwd(), env: {...process.env, CODEX_HOME: codexHome,
-                // Only the fixed local fixture script bypasses host sandbox restrictions.
-                ...(ending === "terminal" ? {INITIAL_AGENT_MODE: AgentMode.AgentFullAccess.id} : {})},
+                // Reattachment needs a representable saved preset; all commands come from this local fixture.
+                INITIAL_AGENT_MODE: AgentMode.AgentFullAccess.id},
             stdio: ["pipe", "pipe", "pipe"],
         });
         let stderr = "";

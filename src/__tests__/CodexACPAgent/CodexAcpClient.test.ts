@@ -702,10 +702,14 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         const threadResumeSpy = vi.spyOn(codexAppServerClient, "threadResume").mockResolvedValue({
             thread: {id: "thread-id"} as any,
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
             model: "gpt-5",
             reasoningEffort: "medium",
             serviceTier: null,
         } as any);
+        vi.spyOn(codexAppServerClient, "threadRead").mockImplementation(async ({threadId}) => ({
+            thread: {id: threadId, modelProvider: "openai"} as any,
+        }));
         const threadReadSpy = vi.spyOn(codexAppServerClient, "threadReadWithHistory").mockResolvedValue({
             thread: {id: "thread-id", turns: []} as any,
         });
@@ -890,8 +894,12 @@ describe('ACP server test', { timeout: 40_000 }, () => {
         vi.spyOn(codexAppServerClient, "skillsExtraRootsSet").mockResolvedValue(undefined);
         vi.spyOn(codexAppServerClient, "listSkills").mockResolvedValue({data: []});
         // Codex sends no thread/settings/updated on a resume. Only the response holds the mode.
+        vi.spyOn(codexAppServerClient, "threadRead").mockImplementation(async ({threadId}) => ({
+            thread: {id: threadId, modelProvider: "openai"} as any,
+        }));
         vi.spyOn(codexAppServerClient, "threadResume").mockImplementation(async ({threadId}) => ({
             thread: {id: threadId},
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
             model: "gpt-5",
             modelProvider: "openai",
             reasoningEffort: "medium",
@@ -950,8 +958,12 @@ describe('ACP server test', { timeout: 40_000 }, () => {
                 model_provider: "azure",
             },
         } as any);
+        vi.spyOn(codexAppServerClient, "threadRead").mockImplementation(async ({threadId}) => ({
+            thread: {id: threadId, modelProvider: "openai"} as any,
+        }));
         const threadResumeSpy = vi.spyOn(codexAppServerClient, "threadResume").mockResolvedValue({
             thread: {id: "thread-id"} as any,
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
             model: "gpt-5",
             reasoningEffort: "medium",
             serviceTier: null,
@@ -996,8 +1008,12 @@ describe('ACP server test', { timeout: 40_000 }, () => {
                 model_provider: "azure",
             },
         } as any);
+        vi.spyOn(codexAppServerClient, "threadRead").mockImplementation(async ({threadId}) => ({
+            thread: {id: threadId, modelProvider: "openai"} as any,
+        }));
         const threadResumeSpy = vi.spyOn(codexAppServerClient, "threadResume").mockResolvedValue({
             thread: {id: "thread-id"} as any,
+            approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
             model: "gpt-5",
             modelProvider: "azure",
             reasoningEffort: "medium",

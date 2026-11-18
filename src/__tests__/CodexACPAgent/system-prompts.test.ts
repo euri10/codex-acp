@@ -32,7 +32,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
                         return {...codexResponse("thread/start") as object, thread: {...thread, id: "fork-1"}};
                     }
                     if (method === "thread/resume" && reportUnload
-                        && calls.at(-2)?.method === "thread/unsubscribe") {
+                        && calls.filter(call => call.method !== "thread/read").at(-2)?.method === "thread/unsubscribe") {
                         client.emit({
                             method: "thread/status/changed",
                             params: {threadId: sessionId, status: {type: "notLoaded"}},
@@ -74,7 +74,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         await client.request("session/new", {cwd, mcpServers: [], systemPrompt: prompt("Old"), ...air});
         calls.length = 0;
         await client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("New")});
-        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/resume"]);
+        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/read", "thread/resume"]);
         expect(calls.at(-1)?.params.developerInstructions).toBe("AIR instructions\n\nNew");
         expect(client.agent.getSessionState(sessionId).instructions?.text).toBe("New");
         expect(client.turnInterruptCalls()).toEqual([]);
@@ -87,8 +87,8 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         for (const systemPrompt of [undefined, null, prompt("Keep")]) {
             await client.request("session/resume", {sessionId, cwd, mcpServers: [], ...(systemPrompt === undefined ? {} : {systemPrompt})});
         }
-        expect(calls.map(call => call.method)).toEqual(["thread/resume", "thread/resume", "thread/resume"]);
-        expect(calls.map(call => call.params.developerInstructions)).toEqual(Array(3).fill("Configured instructions\n\nKeep"));
+        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/resume", "thread/read", "thread/resume", "thread/read", "thread/resume"]);
+        expect(calls.filter(call => call.method === "thread/resume").map(call => call.params.developerInstructions)).toEqual(Array(3).fill("Configured instructions\n\nKeep"));
     });
 
     it("applies instructions on the history replay path", async () => {
@@ -153,7 +153,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         ignoreOverrides();
         await expect(client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Ignored")}))
             .rejects.toMatchObject({code: -32602});
-        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/resume"]);
+        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/read", "thread/resume"]);
         expect(client.agent.getSessionState(sessionId).instructions).toBeUndefined();
     });
 
@@ -217,7 +217,7 @@ describe.each([1, 2] as const)("client system prompts over ACP v%s", (version) =
         });
         await expect(client.request("session/resume", {sessionId, cwd, mcpServers: [], systemPrompt: prompt("Failed")}))
             .rejects.toMatchObject({code: -32603});
-        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/resume", "thread/resume"]);
+        expect(calls.map(call => call.method)).toEqual(["thread/read", "thread/unsubscribe", "thread/read", "thread/resume", "thread/read", "thread/resume"]);
         expect(calls.at(-1)?.params).toEqual({threadId: sessionId, excludeTurns: true});
         expect(client.agent.getSessionState(sessionId).instructions).toBeUndefined();
         client.emit({method: "turn/started", params: {threadId: sessionId, turn: createTurn("inProgress")}} as any);

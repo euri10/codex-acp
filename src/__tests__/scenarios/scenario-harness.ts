@@ -141,8 +141,11 @@ async function runInWorkspace(
     anyAppServer.threadBackgroundTerminalsList = vi.fn().mockResolvedValue({data: [], nextCursor: null});
     anyAppServer.threadResume = vi.fn().mockResolvedValue({
         thread: thread(scenario.history ?? [], workspace), model: model.id, modelProvider: "openai", cwd: workspace,
-        approvalPolicy: "never", sandbox: {type: "dangerFullAccess"}, reasoningEffort: model.defaultReasoningEffort,
+        approvalPolicy: "on-request", approvalsReviewer: "auto_review",
+        sandbox: {type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false},
+        activePermissionProfile: {id: ":workspace", extends: null}, reasoningEffort: model.defaultReasoningEffort,
     });
+    anyAppServer.threadRead = vi.fn().mockResolvedValue({thread: thread([], workspace)});
     anyAppServer.threadReadWithHistory = vi.fn().mockResolvedValue({thread: thread(scenario.history ?? [], workspace)});
 
     const initializeResponse = await agent.initialize({protocolVersion: 1, clientCapabilities: typeof profile === "string" ? PROFILES[profile] : profile});

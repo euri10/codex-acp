@@ -65,11 +65,16 @@ export function createTurn(status: TurnStatus, id = turnId): Turn {
 }
 
 /** Canned Codex app-server responses, keyed by method. */
-export function codexResponse(method: string): unknown {
+export function codexResponse(method: string, params?: {threadId?: string}): unknown {
     switch (method) {
         case "thread/start":
         case "thread/resume":
             return {
+                approvalPolicy: "on-request",
+                approvalsReviewer: "auto_review",
+                sandbox: {type: "workspaceWrite", writableRoots: [], networkAccess: false,
+                    excludeTmpdirEnvVar: false, excludeSlashTmp: false},
+                activePermissionProfile: {id: ":workspace", extends: null},
                 thread: createThread(),
                 model: "gpt-5",
                 modelProvider: "openai",
@@ -79,6 +84,8 @@ export function codexResponse(method: string): unknown {
             };
         case "model/list":
             return {data: [createTestModel({id: "gpt-5"})], nextCursor: null};
+        case "thread/read":
+            return {thread: {...createThread(), ...(params?.threadId ? {id: params.threadId} : {})}};
         case "skills/list":
             return {data: []};
         case "config/read":
@@ -186,7 +193,7 @@ export async function connectSession(protocolVersion: 1 | 2 = 2, options: {
         }
         if (method !== "turn/start") {
             const override = codexResponseOverrides.get(method);
-            return override ? await override(params) : codexResponse(method);
+            return override ? await override(params) : codexResponse(method, params);
         }
         turnStartParams.push(params as Record<string, unknown>);
         transcript.push({codexRequest: method, params});
@@ -407,7 +414,7 @@ export function createReplacementCodexAcpClient(): {
     });
     mocks.mockCodexConnection.sendRequest.mockImplementation(async (method: string, params?: any) => {
         if (method !== "turn/start") {
-            return codexResponse(method);
+            return codexResponse(method, params);
         }
         turnStartParams.push(params as Record<string, unknown>);
         return await turnStart(params as Record<string, unknown>);

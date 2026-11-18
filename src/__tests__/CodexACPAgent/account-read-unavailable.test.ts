@@ -88,6 +88,7 @@ function fixtureWithSession(): CodexMockTestFixture {
     const model = createTestModel();
     appServer.listModels = vi.fn().mockResolvedValue({data: [model], nextCursor: null});
     appServer.accountLogout = vi.fn().mockResolvedValue({});
+    appServer.threadRead = vi.fn().mockResolvedValue({thread: {id: SESSION_ID, modelProvider: "openai"}});
     appServer.threadResume = vi.fn().mockResolvedValue({
         thread: {id: SESSION_ID, historyMode: "paginated", turns: [], cwd: "/test/project", name: null, preview: ""},
         itemsBackwardsCursor: "item:last",
@@ -95,6 +96,7 @@ function fixtureWithSession(): CodexMockTestFixture {
         modelProvider: "openai",
         cwd: "/test/project",
         approvalPolicy: "never",
+        approvalsReviewer: "user",
         sandbox: {type: "dangerFullAccess"},
         reasoningEffort: model.defaultReasoningEffort,
     });

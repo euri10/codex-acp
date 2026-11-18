@@ -378,7 +378,11 @@ describe("Gateway model discovery (providers/set)", () => {
 
     it("narrows the models of an open session after providers/set and widens them after providers/disable", async () => {
         const replacements = [createFixture(), createFixture()].map(replacementFixture => {
+            vi.spyOn(replacementFixture.getCodexAppServerClient(), "threadRead").mockResolvedValue({
+                thread: {id: "thread-id", modelProvider: "custom-gateway"},
+            } as never);
             vi.spyOn(replacementFixture.getCodexAppServerClient(), "threadResume").mockResolvedValue({
+                approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
                 thread: {id: "thread-id"},
                 model: "gpt-5.5",
                 modelProvider: "custom-gateway",

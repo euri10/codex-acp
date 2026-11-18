@@ -11,6 +11,7 @@ const resumed = (id: string) => ({
         createdAt: 0, updatedAt: 0, path: null, cwd: "/work", cliVersion: "0", source: "appServer", agentNickname: null,
         agentRole: null, gitInfo: null, name: null},
     model: "gpt-test", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null, itemsBackwardsCursor: null, cwd: "/work",
+    approvalPolicy: "never", approvalsReviewer: "user", sandbox: {type: "dangerFullAccess"},
 });
 
 type Internals = {ensureSessionReady(state: unknown): Promise<void> | undefined, recovery: AppServerRecovery<never>};
@@ -356,10 +357,7 @@ describe("app-server recovery", () => {
         const fixture = createRecoveryFixture({env: {CODEX_ACP_APP_SERVER_CRASH_LIMIT: "10"}});
         await openSession(fixture);
         fixture.answers.set("thread/resume", (params, server) => {
-            if ((params as {threadId: string}).threadId !== "huge") return undefined === params ? {} : {
-                thread: {id: (params as {threadId: string}).threadId, turns: [], historyMode: "paginated", status: {type: "idle"}},
-                model: "gpt-test", modelProvider: "openai", reasoningEffort: "medium", serviceTier: null, itemsBackwardsCursor: null,
-            };
+            if ((params as {threadId: string}).threadId !== "huge") return resumed((params as {threadId: string}).threadId);
             setImmediate(() => server.child.die(null, "SIGKILL"));
             return undefined;
         });
@@ -390,7 +388,7 @@ describe("app-server recovery", () => {
         const sessionId = await openSession(fixture);
         await fixture.kill();
         fixture.answers.set("thread/resume", () => new Error("no rollout found for thread id thread-new"));
-        fixture.answers.set("thread/read", () => new Error("thread not loaded"));
+        fixture.answers.set("thread/read", () => new Error(`thread not loaded: ${sessionId}`));
 
         await expect(fixture.agent.prompt({sessionId, prompt: [{type: "text", text: "hi"}]})).rejects.toMatchObject({
             code: 1001,
@@ -499,7 +497,7 @@ describe("app-server recovery", () => {
         fixture.answers.set("thread/resume", (params) => (params as {threadId: string}).threadId === empty
             ? new Error(`no rollout found for thread id ${empty}`)
             : defaultAnswer("thread/resume", params));
-        fixture.answers.set("thread/read", () => new Error("thread not loaded"));
+        fixture.answers.set("thread/read", params => new Error(`thread not loaded: ${(params as {threadId: string}).threadId}`));
 
         await fixture.agent.setProvider({providerId: "openai", apiType: "openai", baseUrl: "https://gateway.example/v1"});
 
