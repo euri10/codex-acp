@@ -11,6 +11,7 @@ import {
     SESSION_STEERING_METHOD,
 } from "./AcpExtensions";
 import {ASYNC_TASK_STOP_METHOD} from "./async-tasks/AsyncTaskExtension";
+import {ACCOUNT_LIMITS_READ_METHOD} from "./AccountLimitsExtension";
 import {CODEX_HOOKS_LIST_METHOD, CODEX_HOOKS_TRUST_METHOD} from "./CodexHookTrust";
 import {
     SESSION_ARCHIVE_METHOD,
@@ -204,6 +205,7 @@ function createRouter(
         .onNotification(acp.methods.agent.session.cancel, (ctx) => getAgent().cancel(ctx.params))
         .onRequest("authentication/status", emptyExtensionParamsParser, (ctx) => getAgent().extMethod("authentication/status", ctx.params))
         .onRequest("authentication/logout", emptyExtensionParamsParser, (ctx) => getAgent().extMethod("authentication/logout", ctx.params))
+        .onRequest(ACCOUNT_LIMITS_READ_METHOD, emptyExtensionParamsParser, (ctx) => getAgent().extMethod(ACCOUNT_LIMITS_READ_METHOD, ctx.params))
         .onRequest(LEGACY_SET_SESSION_MODEL_METHOD, legacySetSessionModelParamsParser, (ctx) => getAgent(ctx.params).extMethod(LEGACY_SET_SESSION_MODEL_METHOD, ctx.params))
         .onRequest(SESSION_STEERING_METHOD, sessionSteerParamsParser, (ctx) => getAgent(ctx.params).extMethod(SESSION_STEERING_METHOD, ctx.params))
         .onRequest(ASYNC_TASK_STOP_METHOD, asyncTaskStopParamsParser, (ctx) => getAgent(ctx.params).extMethod(ASYNC_TASK_STOP_METHOD, ctx.params))
@@ -220,6 +222,7 @@ function createRouter(
     const v2Agent = acpV2.agent({name: packageJson.name})
         .onConnect((connection) => attachAgent(createAgent(new AcpV2Connection(connection.client)), connection.signal))
         .onRequest(acpV2.methods.agent.initialize, (ctx) => initialize(ctx.requestId, () => getAgent().initializeV2(ctx.params)))
+        .onRequest(ACCOUNT_LIMITS_READ_METHOD, emptyExtensionParamsParser, (ctx) => getAgent().extMethod(ACCOUNT_LIMITS_READ_METHOD, ctx.params))
         // No `session/load`: v2 folds it into `session/resume` with `replayFrom`.
         .onRequest(acpV2.methods.agent.session.new, (ctx) => createdSetup(ctx.requestId, () => getAgentForPaths(ctx.params).newSessionV2(ctx.params)))
         .onRequest(acpV2.methods.agent.session.list, (ctx) => getAgentForPaths({cwd: ctx.params.cwd ?? null}).listSessions(ctx.params))

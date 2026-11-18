@@ -59,7 +59,19 @@ function response(profile: ProfileName, name: string, method: string): Update {
 beforeAll(async () => {
     for (const profile of PROFILE_NAMES) {
         for (const each of SCENARIOS) {
-            recordings.set(`${profile}/${each.name}`, normalize(await runScenario(each, profile)));
+            const messages = normalize(await runScenario(each, profile));
+            const initialization = messages.find(message => message.method === "initialize")!;
+            const meta = (initialization.params as acp.InitializeResponse).agentCapabilities!._meta!;
+            // Assert our advertised extension before comparing the remaining upstream contract.
+            expect(meta["io.github.euri10.louiselm"]).toEqual({
+                accountLimits: {
+                    version: 1,
+                    readMethod: "_io.github.euri10.louiselm/account_limits/read",
+                    updatedMethod: "_io.github.euri10.louiselm/account_limits/updated",
+                },
+            });
+            delete meta["io.github.euri10.louiselm"];
+            recordings.set(`${profile}/${each.name}`, messages);
         }
     }
 }, 120_000);

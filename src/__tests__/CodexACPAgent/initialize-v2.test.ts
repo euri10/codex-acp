@@ -40,6 +40,7 @@ function connectRouter() {
         codexClient = codexAcpClient;
         vi.spyOn(codexAcpClient, "getAgentConfiguredModelProvider").mockResolvedValue("openai");
         vi.spyOn(codexAcpClient, "getAccount").mockResolvedValue({account: null, requiresOpenaiAuth: true});
+        vi.spyOn(codexAcpClient, "getAccountLimits").mockResolvedValue({buckets: []});
         agent = new CodexAcpServer(connection, codexAcpClient);
         return agent;
     });
@@ -56,6 +57,20 @@ function connectRouter() {
 
 /** The agent version changes on every release; keep snapshots stable. */
 function withStableVersion<T extends object>(response: T, infoKey: "info" | "agentInfo"): T {
+    response = structuredClone(response);
+    const capabilities = (response as Record<string, any>)[infoKey === "info" ? "capabilities" : "agentCapabilities"];
+    expect(capabilities._meta["io.github.euri10.louiselm"]).toEqual({
+        accountLimits: {
+            version: 1,
+            readMethod: "_io.github.euri10.louiselm/account_limits/read",
+            updatedMethod: "_io.github.euri10.louiselm/account_limits/updated",
+        },
+    });
+    delete capabilities._meta["io.github.euri10.louiselm"];
+    const remainingMeta = capabilities._meta;
+    delete capabilities._meta;
+    // Restore upstream key order after removing the injected local capability.
+    if (Object.keys(remainingMeta).length > 0) capabilities._meta = remainingMeta;
     const info = (response as Record<string, any>)[infoKey];
     return {...response, [infoKey]: {...info, version: "<version>"}};
 }
@@ -95,6 +110,8 @@ describe('CodexACPAgent - initialize over ACP v2', () => {
         await expect(dump(withStableVersion(response, "info"))).toMatchFileSnapshot(
             'data/initialize-v2-response.json'
         );
+        await expect(connection.agent.request("_io.github.euri10.louiselm/account_limits/read", {}))
+            .resolves.toEqual({buckets: []});
         // Extension notifications still reach a v2 client before any v2 send path exists.
         await vi.waitFor(() => expect(authStatusUpdates).toHaveLength(1));
     });
@@ -148,6 +165,8 @@ describe('CodexACPAgent - initialize over ACP v2', () => {
         await expect(dump(withStableVersion(response, "agentInfo"))).toMatchFileSnapshot(
             'data/initialize-v1-routed-response.json'
         );
+        await expect(connection.agent.request("_io.github.euri10.louiselm/account_limits/read", {}))
+            .resolves.toEqual({buckets: []});
     });
 });
 
